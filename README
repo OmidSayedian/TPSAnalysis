@@ -1,24 +1,25 @@
 # Project Title
 
-ECMT2 A5 Validation, Post-processing And Assessment
+AI Assisted Thermal Plain Source Measurement, By Neural Network
 
 ## Description
 
 The project does:
 
-- Validation of ECMT2_A5.
+- TPS measurement on different materials, by a specified hardware.
+- Saving the data captured by the device, into excel files.
 - Post-processing of produced Excel files.
-- Assessment of validation.
+- Assessment and prediction by means of a deep neural network.
 
 ## Getting Started
 
-* Make sure you have **python 3.9.4** or later
+* Make sure you have **python 3.9.9** or later
 * Please run "BeforeFirstRun.bat" file, so that the dependencies (except python), will be automatically installed.
 
 ### Dependencies
 Main languages:
 
-- python [3.9.4]
+- python [3.9.9]
 - robotframework [3.2.2]
 
 For the following pythonic libraries, no specific version is required (the latest version will be installed by "BeforeFirstRun.bat" file):
@@ -37,14 +38,6 @@ The following libraries are related to robotframework:
 - String
 - Dialogs
 
-The following CROUSE libraries are not versioned, and they might cause trouble! Always consult with CGT team.
-
-- CGT_Connect.py
-- BSP_KeywordLib.py
-- CAN_KeywordLib.py
-- EXL_KeywordLib.py
-- ECMTGeneralKeywords.robot
-
 Written by **ECLIPSE [Committers 2021-06]** with the following plug-ins:
 
 - RED 0.9.5
@@ -57,9 +50,7 @@ Written by **ECLIPSE [Committers 2021-06]** with the following plug-ins:
 
 ### Installing
 
-* [Project's SVN address](https://192.168.5.65/svn/PECMTPE2/Development/Hardware/Validation/Tool/ECMT_A5_Validation)
 * Please add an empty new-folder naming "TestReports" in the projects direction.
-* Open the batch file, naming "ECMT2_A5_Validation.cmd". In the second line, after the second backslash, correct the file directory name.
  
 ### Executing program
 
@@ -85,7 +76,7 @@ Note 2: During the process, DO NOT touch or click (Command Prompt). If you do so
 Please contact me via phone or email, if you are still stuck after multitude of surges ;-)
 
 * Phone: 4720
-* Email: [m.seyedian@crouse.ir](m.seyedian@crouse.ir)
+* Email: [omidsayedian@gmail.](m.seyedian@crouse.ir)
 
 ## Authors
 
