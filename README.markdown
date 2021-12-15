@@ -26,11 +26,14 @@ For the following pythonic libraries, no specific version is required (the lates
 
 - openpyxl
 - numpy
-- paramiko
 - statistics
 - serial
 - intelhex
 - bincopy
+- keras
+- scipy
+- theano
+- tensorflow
 
 The following libraries are related to robotframework:
 
@@ -51,46 +54,50 @@ Written by **ECLIPSE [Committers 2021-06]** with the following plug-ins:
 ### Installing
 
 * Please add an empty new-folder naming "TestReports" in the projects direction.
+* Open batch files, naming "TPS_Analysis.cmd", and "TPS_Prediction.cmd". 
+In the second line, after the second backslash, correct the file directory name.
  
 ### Executing program
 
+Data Capturing:
 * Close any unused or unrelated programs or files.
-* Close Excel documents.
-* After editing the "ECMT2_A5_Validation.cmd" file, as it is mentioned in the previous section, run it.
-* The program is set to create one 100 kilo Excel files, with 1000 rows of data.
+* After editing the "TPS_Analysis.cmd" file, as it is mentioned in the previous section, run it.
+* The program is set to create one TPS_Analysis Excel files, with 6000 rows of raw data.
 * The Excel files are processed in the end.
-* Should you want to stop the process, do as following:
-    * Turn the expansion off.
-    * Press "CTRL" + "C".
-    * Press "CTRL" + "C" again.
-    * Type "n" or "N" in the command prompt dialog box.
+* In the end:
+    * Turn the device off.
     * Wait for post-processing to end.
     * Your files are ready in "TestReports" folder in the directory.
-    
-Note 1: After running the "ECMT2_A5_Validation.cmd" file, all Excel files will be automatically closed!
 
-Note 2: During the process, DO NOT touch or click (Command Prompt). If you do so, the excel file won't get saved!
+Prediction:
+* Close any unused or unrelated programs or files.
+* Run the "TPS_Prediction.cmd" file.
+* The program is set to predict the captured data by AI analysis.
+* A new Excel files is generated, containing the prediction and graphs.
+
+Note 1: After running the "TPS_Analysis.cmd" file, all Excel files will be automatically closed!
+
+Note 2: During the process, DO NOT touch or click Command Prompt!
 
 ## Help
 
 Please contact me via phone or email, if you are still stuck after multitude of surges ;-)
 
-* Phone: 4720
-* Email: [omidsayedian@gmail.](m.seyedian@crouse.ir)
+* Phone: +98 939 --- ----
+* Email: [omidsayedian@gmail.com](omidsayedian@gmail.com)
 
 ## Authors
 
-Omid Seyedian
+Omid Sayedian
 
 ## Version History
 
-* 1.2006
-    * Stable version
+* Stable versions
+    * 2021Q4
 
 ## License
 
-Not Specified
-[CROUSE Confidential]
+MIT License
 
 ## Acknowledgments
-This project is written on [ECLIPSE](https://www.eclipse.org/) platform which is both free and open-source.
+This project is written on [Eclipse IDE 2021‑06](https://www.eclipse.org/) platform which is both free and open-source.
