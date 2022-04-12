@@ -1,0 +1,388 @@
+/*********************************************************************
+Project : ThermalConductivityDeviceSoftware_Ver11
+Version : 11
+Date    : Saturday, ‎August ‎7, ‎2021, ‏‎11:39:22 PM
+
+Author  : Omid Sayedian
+Company : Barfarad
+
+Comments:
++3.3VDC Bus
+20MHz Clock
+Timer0 OvrFl
+I2CADS1113
+AlpNum_LCD
+MasterThesis
+
+Chip type               : ATmega328P
+Program type            : Application
+AVR Core Clock frequency: 20.000000 MHz
+Memory model            : Small
+External RAM size       : 0
+Data Stack size         : 512
+*********************************************************************/
+
+#include <mega328p.h>
+#include <delay.h>
+#include <i2c.h>
+#include <alcd.h>
+#include <stdio.h>
+
+/*********************************************************************
+Variables
+*********************************************************************/
+
+char lcd_string[16];
+
+int temple = 0;
+int temperature, bus;
+
+int counter = 0;
+int MSB, LSB;
+
+/*********************************************************************
+External Interrupt 1 service routine
+*********************************************************************/
+interrupt [EXT_INT1] void ext_int1_isr(void)
+{
+	//No plans yet!
+}
+
+#define DATA_REGISTER_EMPTY (1<<UDRE0)
+#define RX_COMPLETE (1<<RXC0)
+#define FRAMING_ERROR (1<<FE0)
+#define PARITY_ERROR (1<<UPE0)
+#define DATA_OVERRUN (1<<DOR0)
+
+/*********************************************************************
+USART Receiver buffer
+*********************************************************************/
+#define RX_BUFFER_SIZE0 32
+char rx_buffer0[RX_BUFFER_SIZE0];
+
+#if RX_BUFFER_SIZE0 <= 256
+unsigned char rx_wr_index0=0,rx_rd_index0=0;
+#else
+unsigned int rx_wr_index0=0,rx_rd_index0=0;
+#endif
+
+#if RX_BUFFER_SIZE0 < 256
+unsigned char rx_counter0=0;
+#else
+unsigned int rx_counter0=0;
+#endif
+
+/*********************************************************************
+USART Receiver interrupt service routine *********************************************************************/
+interrupt [USART_RXC] void usart_rx_isr(void)
+{
+	char status,data;
+	status=UCSR0A;
+	data=UDR0;
+	if ((status & (FRAMING_ERROR | PARITY_ERROR | DATA_OVERRUN))==0)
+	{
+		rx_buffer0[rx_wr_index0++]=data;
+		#if RX_BUFFER_SIZE0 == 256
+   		// special case for receiver buffer size=256
+   		if (++rx_counter0 == 0) rx_buffer_overflow0=1;
+		#else
+   		if (rx_wr_index0 == RX_BUFFER_SIZE0) rx_wr_index0=0;
+   		if (++rx_counter0 == RX_BUFFER_SIZE0)
+      	{
+     		rx_counter0=0;
+      		rx_buffer_overflow0=1;
+		}
+	#endif
+   }
+}
+
+#ifndef _DEBUG_TERMINAL_IO_
+#define _ALTERNATE_GETCHAR_
+#pragma used+
+char getchar(void)
+{
+	char data;
+	while (rx_counter0==0);
+	data=rx_buffer0[rx_rd_index0++];
+	#if RX_BUFFER_SIZE0 != 256
+	if (rx_rd_index0 == RX_BUFFER_SIZE0) rx_rd_index0=0;
+	#endif
+	#asm("cli")
+	--rx_counter0;
+	#asm("sei")
+	return data;
+}
+
+#pragma used-
+#endif
+
+/*********************************************************************
+USART Transmitter buffer
+*********************************************************************/
+#define TX_BUFFER_SIZE0 32
+char tx_buffer0[TX_BUFFER_SIZE0];
+
+#if TX_BUFFER_SIZE0 <= 256
+unsigned char tx_wr_index0=0,tx_rd_index0=0;
+#else
+unsigned int tx_wr_index0=0,tx_rd_index0=0;
+#endif
+
+#if TX_BUFFER_SIZE0 < 256
+unsigned char tx_counter0=0;
+#else
+unsigned int tx_counter0=0;
+#endif
+
+/*********************************************************************
+USART Transmitter interrupt service routine
+*********************************************************************/
+interrupt [USART_TXC] void usart_tx_isr(void)
+{
+	if (tx_counter0)
+    {
+    	--tx_counter0;
+   		UDR0=tx_buffer0[tx_rd_index0++];
+		#if TX_BUFFER_SIZE0 != 256
+   		if (tx_rd_index0 == TX_BUFFER_SIZE0) tx_rd_index0=0;
+	#endif
+    }
+}
+
+#ifndef _DEBUG_TERMINAL_IO_
+// Write a character to the USART Transmitter buffer
+#define _ALTERNATE_PUTCHAR_
+#pragma used+
+void putchar(char c)
+{
+	while (tx_counter0 == TX_BUFFER_SIZE0);
+	#asm("cli")
+	if (tx_counter0 || ((UCSR0A & DATA_REGISTER_EMPTY)==0))
+    {
+    	tx_buffer0[tx_wr_index0++]=c;
+		#if TX_BUFFER_SIZE0 != 256
+   		if (tx_wr_index0 == TX_BUFFER_SIZE0) tx_wr_index0=0;
+	#endif
+   ++tx_counter0;
+    }
+	else
+    UDR0=c;
+	#asm("sei")
+}
+
+#pragma used-
+#endif
+#define ADC_VREF_TYPE ((0<<REFS1) | (0<<REFS0) | (0<<ADLAR))
+
+// Read the AD conversion result
+unsigned int read_adc(unsigned char adc_input)
+{
+	ADMUX=adc_input | ADC_VREF_TYPE;
+	delay_us(10);
+	ADCSRA|=(1<<ADSC);
+	while ((ADCSRA & (1<<ADIF))==0);
+	ADCSRA|=(1<<ADIF);
+	return ADCW;
+}
+
+/*********************************************************************
+Timer 0 overflow interrupt service routine
+*********************************************************************/
+interrupt [TIM0_OVF] void timer0_ovf_isr(void)
+{
+	// Reinitialize Timer 0 value
+	//9.984ms ~ 100.16Hz
+	TCNT0=0x3D;
+
+ 	if(temple > 0)
+	{
+  		temperature = read_adc(1);
+ 		bus = read_adc(0);
+  		printf("%x %x\n", temperature, bus);
+  		temple--;
+	 }
+
+	 if(counter > 0)
+ 	 {
+  	 	i2c_start();
+ 		i2c_write(0x90);
+  		i2c_write(0x00);
+  		i2c_start();
+  		i2c_write(0x91);
+  		MSB = i2c_read(1);
+  		LSB = i2c_read(0);
+  		i2c_stop();
+  		printf("%x %x\n", MSB, LSB);
+  		counter--;
+	 }
+}
+
+/*********************************************************************
+Main Function
+*********************************************************************/
+void main(void)
+{
+	// Crystal Oscillator division factor: 1
+	#pragma optsize-
+	CLKPR=(1<<CLKPCE);
+	CLKPR=(0<<CLKPCE) | (0<<CLKPS3) | (0<<CLKPS2) | (0<<CLKPS1) | (0<<CLKPS0);
+	#ifdef _OPTIMIZE_SIZE_
+	#pragma optsize+
+	#endif
+
+	DDRB=(0<<DDB7) | (0<<DDB6) | (0<<DDB5) | (0<<DDB4) | (0<<DDB3) | (0<<DDB2) | (0<<DDB1) | (0<<DDB0);
+	PORTB=(0<<PORTB7) | (0<<PORTB6) | (0<<PORTB5) | (0<<PORTB4) | (0<<PORTB3) | (0<<PORTB2) | (0<<PORTB1) | (0<<PORTB0);
+
+	DDRC=(0<<DDC6) | (0<<DDC5) | (0<<DDC4) | (0<<DDC3) | (0<<DDC2) | (0<<DDC1) | (0<<DDC0);
+	PORTC=(0<<PORTC6) | (0<<PORTC5) | (0<<PORTC4) | (0<<PORTC3) | (0<<PORTC2) | (0<<PORTC1) | (0<<PORTC0);
+
+	DDRD=(0<<DDD7) | (0<<DDD6) | (0<<DDD5) | (1<<DDD4) | (0<<DDD3) | (1<<DDD2) | (0<<DDD1) | (0<<DDD0);
+	PORTD=(0<<PORTD7) | (0<<PORTD6) | (0<<PORTD5) | (0<<PORTD4) | (1<<PORTD3) | (0<<PORTD2) | (0<<PORTD1) | (0<<PORTD0);
+
+
+/*********************************************************************
+	Timer/Counter 0  initialization
+	Timer/Counter 0  initialization
+	Clock source  :  System Clock
+	Clock value   :  19.531 kHz
+	Mode          :  Normal top=0xFF
+	OC0A output   :  Disconnected
+	OC0B output   :  Disconnected
+	Timer Period  :  9.984 ms
+*********************************************************************/
+	TCCR0A=(0<<COM0A1) | (0<<COM0A0) | (0<<COM0B1) | (0<<COM0B0) | (0<<WGM01) | (0<<WGM00);
+	TCCR0B=(0<<WGM02) | (1<<CS02) | (0<<CS01) | (1<<CS00);
+	TCNT0=0x3D;
+	OCR0A=0x00;
+	OCR0B=0x00;
+	TIMSK0=(0<<OCIE0B) | (0<<OCIE0A) | (1<<TOIE0);
+	EICRA=(1<<ISC11) | (0<<ISC10) | (0<<ISC01) | (0<<ISC00);
+	EIMSK=(1<<INT1) | (0<<INT0);
+	EIFR=(1<<INTF1) | (0<<INTF0);
+	PCICR=(0<<PCIE2) | (0<<PCIE1) | (0<<PCIE0);
+
+/*********************************************************************
+	USART initialization
+	Communication Parameters : 8 Data, 1 Stop, No Parity
+	USART Receiver           : On
+	USART Transmitter        : On
+	USART0 Mode              : Asynchronous
+	USART Baud Rate          : 19200
+*********************************************************************/
+	UCSR0A=(0<<RXC0) | (0<<TXC0) | (0<<UDRE0) | (0<<FE0) | (0<<DOR0) | (0<<UPE0) | (0<<U2X0) | (0<<MPCM0);
+	UCSR0B=(1<<RXCIE0) | (1<<TXCIE0) | (0<<UDRIE0) | (1<<RXEN0) | (1<<TXEN0) | (0<<UCSZ02) | (0<<RXB80) | (0<<TXB80);
+	UCSR0C=(0<<UMSEL01) | (0<<UMSEL00) | (0<<UPM01) | (0<<UPM00) | (0<<USBS0) | (1<<UCSZ01) | (1<<UCSZ00) | (0<<UCPOL0);
+	UBRR0H=0x00;
+	UBRR0L=0x40;
+
+/*********************************************************************
+	ADC initialization
+	ADC Clock frequency          : 625.000 kHz
+	ADC Voltage Reference        : AREF pin
+	ADC Auto Trigger Source      : ADC Stopped
+	Digital input buffers on ADC0: On
+	ADC1                         : On
+	ADC2                         : On
+	ADC3                         : On
+	ADC4                         : On 
+	ADC5                         : On
+*********************************************************************/
+	DIDR0=(0<<ADC5D) | (0<<ADC4D) | (0<<ADC3D) | (0<<ADC2D) | (0<<ADC1D) | (0<<ADC0D);
+	ADMUX=ADC_VREF_TYPE;
+	ADCSRA=(1<<ADEN) | (0<<ADSC) | (0<<ADATE) | (0<<ADIF) | (0<<ADIE) | (1<<ADPS2) | (0<<ADPS1) | (1<<ADPS0);
+	ADCSRB=(0<<ADTS2) | (0<<ADTS1) | (0<<ADTS0);
+
+/*********************************************************************
+	Bit-Banged I2C Bus initialization
+	I2C Port            : PORTC
+	I2C SDA bit         : 4
+	I2C SCL bit         : 5
+	Bit Rate            : 100 kHz
+*********************************************************************/
+	i2c_init();
+
+	// Alphanumeric LCD initialization
+	// RS - PORTD Bit 5
+	// RD - PORTD Bit 6
+	// EN - PORTD Bit 7
+	// D4 - PORTB Bit 0
+	// D5 - PORTB Bit 2
+	// D6 - PORTB Bit 3
+	// D7 - PORTB Bit 4
+	// Characters/line: 16
+
+	lcd_init(16);
+
+	#asm("sei")
+
+	// Welcome
+	lcd_gotoxy(0,0);
+	lcd_puts("Welcome Dear User!");
+	lcd_gotoxy(0,1);
+	lcd_puts("- Omid Sayedian");
+	delay_ms(1000);
+
+	// The buzzer is set from here.
+	PORTD.2=1;
+	delay_ms(40);
+	PORTD.2=0;
+	delay_ms(40);
+	PORTD.2=1;
+	delay_ms(40);
+	PORTD.2=0;
+	delay_ms(40);
+	PORTD.2=1;
+	delay_ms(40);
+	PORTD.2=0;
+
+	//I2C Config
+	i2c_start();
+	i2c_write(0x90);
+	i2c_write(0x01);
+	i2c_stop();
+
+	i2c_start();
+	i2c_write(0x90);
+	i2c_write(0x01);
+	i2c_write(0x04);
+	i2c_write(0x83);
+	i2c_stop();
+
+	delay_ms(100);
+
+	i2c_start();
+	i2c_write(0x90);
+	i2c_write(0x00);
+	i2c_stop();
+
+	delay_ms(1000);
+	scanf("%d", &temple);
+	scanf("%d", &counter);
+	PORTD.4=1;
+
+	lcd_clear();
+	lcd_gotoxy(0,0);
+	lcd_puts("Capturing Data");
+	lcd_gotoxy(0,1);
+	sprintf(lcd_string, "%d Samples", counter);
+	lcd_puts(lcd_string);
+
+	while (1)
+	{
+		delay_ms(1000);
+		if(counter == 0)
+		{
+			PORTD.2=1;
+			delay_ms(500);
+			PORTD.2=0;
+			PORTD.4=0;
+
+			lcd_clear();
+			lcd_gotoxy(0,0);
+			lcd_puts("Test Completed!");
+			lcd_gotoxy(0,1);
+			lcd_puts("RST = Reanalysis");
+			break;
+		}
+	}
+}
